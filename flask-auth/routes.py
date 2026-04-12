@@ -1,7 +1,27 @@
 from flask import request, session, jsonify
 from flask_restful import Resource
+from functools import wraps
 from models import User, Note
 from app import db
+
+
+# decorator to protect routes - reusable on any route
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        user_id = session.get('user_id')
+        if not user_id:
+            return {'error': 'Unauthorized - please log in'}, 401
+        return f(*args, **kwargs)
+    return decorated
+
+
+# helper function to get current logged in user
+def get_current_user():
+    user_id = session.get('user_id')
+    if not user_id:
+        return None
+    return User.query.get(user_id)
 
 
 # POST /signup - create a new user
@@ -44,10 +64,8 @@ class Login(Resource):
 
 # DELETE /logout - log out a user
 class Logout(Resource):
+    @login_required
     def delete(self):
-        if not session.get('user_id'):
-            return {'error': 'Not logged in'}, 401
-
         session.pop('user_id', None)
         return {}, 204
 
@@ -55,37 +73,24 @@ class Logout(Resource):
 # GET /check_session - check if user is logged in
 class CheckSession(Resource):
     def get(self):
-        user_id = session.get('user_id')
-
-        if not user_id:
+        user = get_current_user()
+        if not user:
             return {'error': 'Unauthorized'}, 401
-
-        user = User.query.get(user_id)
         return {'id': user.id, 'username': user.username}, 200
-
-
-# helper function to check if user is logged in
-def get_current_user():
-    user_id = session.get('user_id')
-    if not user_id:
-        return None
-    return User.query.get(user_id)
 
 
 # GET /notes - get all notes for logged in user with pagination
 # POST /notes - create a new note
 class NoteList(Resource):
+    @login_required
     def get(self):
-        # check if user is logged in
         user = get_current_user()
-        if not user:
-            return {'error': 'Unauthorized'}, 401
 
         # pagination - default page 1, 10 notes per page
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 10, type=int)
 
-        # get only this user's notes
+        # only get notes that belong to this user
         notes = Note.query.filter_by(user_id=user.id).paginate(
             page=page, per_page=per_page, error_out=False
         )
@@ -105,12 +110,9 @@ class NoteList(Resource):
             'pages': notes.pages
         }, 200
 
+    @login_required
     def post(self):
-        # check if user is logged in
         user = get_current_user()
-        if not user:
-            return {'error': 'Unauthorized'}, 401
-
         data = request.get_json()
         title = data.get('title')
         content = data.get('content')
@@ -137,18 +139,15 @@ class NoteList(Resource):
 # PATCH /notes/<id> - update a note
 # DELETE /notes/<id> - delete a note
 class NoteDetail(Resource):
+    @login_required
     def patch(self, id):
-        # check if user is logged in
         user = get_current_user()
-        if not user:
-            return {'error': 'Unauthorized'}, 401
-
         note = Note.query.get(id)
 
         if not note:
             return {'error': 'Note not found'}, 404
 
-        # make sure user can only update their own notes
+        # users can only update their own notes
         if note.user_id != user.id:
             return {'error': 'Unauthorized'}, 401
 
@@ -167,18 +166,15 @@ class NoteDetail(Resource):
             'created_at': str(note.created_at)
         }, 200
 
+    @login_required
     def delete(self, id):
-        # check if user is logged in
         user = get_current_user()
-        if not user:
-            return {'error': 'Unauthorized'}, 401
-
         note = Note.query.get(id)
 
         if not note:
             return {'error': 'Note not found'}, 404
 
-        # make sure user can only delete their own notes
+        # users can only delete their own notes
         if note.user_id != user.id:
             return {'error': 'Unauthorized'}, 401
 
