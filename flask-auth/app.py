@@ -4,7 +4,6 @@ from flask_migrate import Migrate
 from flask_bcrypt import Bcrypt
 from flask_restful import Api
 
-# create extensions
 db = SQLAlchemy()
 migrate = Migrate()
 bcrypt = Bcrypt()
@@ -12,14 +11,25 @@ bcrypt = Bcrypt()
 def create_app():
     app = Flask(__name__)
 
-    # app config
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SECRET_KEY'] = 'supersecretkey'
 
-    # connect extensions to app
     db.init_app(app)
     migrate.init_app(app, db)
     bcrypt.init_app(app)
 
+    # register routes
+    from routes import Signup, Login, Logout, CheckSession
+    api = Api(app)
+    api.add_resource(Signup, '/signup')
+    api.add_resource(Login, '/login')
+    api.add_resource(Logout, '/logout')
+    api.add_resource(CheckSession, '/check_session')
+
     return app
+
+app = create_app()
+
+if __name__ == '__main__':
+    app.run(port=5555, debug=True)
