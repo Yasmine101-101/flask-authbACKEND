@@ -2,7 +2,7 @@ from flask import request, session, jsonify
 from flask_restful import Resource
 from functools import wraps
 from models import User, Note
-from app import db
+from extensions import db
 
 
 # decorator to protect routes - reusable on any route
